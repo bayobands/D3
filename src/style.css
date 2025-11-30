@@ -1,0 +1,12 @@
+#controlPanel {
+  padding: 1rem;
+}
+
+#statusPanel {
+  padding: 1rem;
+}
+
+#map {
+  width: 100%;
+  height: 80vh;
+}
