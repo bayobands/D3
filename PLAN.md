@@ -26,8 +26,8 @@ Key gameplay challenge: collect nearby tokens and craft a high-value token.
 - [x] Initialize Leaflet map centered on classroom coordinates.
 - [x] Draw one grid cell polygon on the map.
 - [x] Generalize to draw a full grid of cells around the player.
-- [ ] Implement deterministic token spawning using `luck` for each cell.
-- [ ] Visualize cell contents (empty vs token + numeric value).
+- [x] Implement deterministic token spawning using `luck` for each cell.
+- [x] Visualize cell contents (empty vs token + numeric value).
 - [ ] Track player inventory (0 or 1 token) in game state.
 - [ ] Implement “pick up token” when clicking a nearby cell with a token.
 - [ ] Restrict interaction to cells within 3 grid steps of player.

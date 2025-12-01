@@ -89,16 +89,16 @@ function renderGrid() {
 
       // Skip if already drawn
       if (!cellLayers.has(key)) {
+        const tokenValue = tokenFromLuck(i, j);
+
         const rect = L.rectangle(boundsForCell(i, j), {
-          color: "#666",
+          color: tokenValue !== null ? "#2b8a3e" : "#666",
           weight: 0.4,
-          fillOpacity: 0.08,
+          fillOpacity: tokenValue !== null ? 0.25 : 0.08,
         });
 
-        // Determine token
-        const t = tokenFromLuck(i, j);
-        if (t !== null) {
-          rect.bindTooltip(`${t}`, {
+        if (tokenValue !== null) {
+          rect.bindTooltip(`${tokenValue}`, {
             permanent: true,
             direction: "center",
             className: "cell-label",
