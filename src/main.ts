@@ -14,24 +14,39 @@ import luck from "./_luck.ts";
    1. MAP SETUP
 --------------------------------------------------------------*/
 
+// Create map container
 const mapDiv = document.createElement("div");
 mapDiv.id = "map";
 document.body.appendChild(mapDiv);
 
-const CLASS_LAT = 36.9916;
-const CLASS_LNG = -122.0583;
+// CLASSROOM UNIT 2 — Fixed player position
+const PLAYER_LAT = 36.99791731971503;
+const PLAYER_LNG = -122.05688774585725;
 
+// Initialize map
 const map = L.map("map", {
   zoomControl: true,
   zoomSnap: 0,
-}).setView([CLASS_LAT, CLASS_LNG], 18);
+}).setView([PLAYER_LAT, PLAYER_LNG], 18);
 
+// Add OSM tiles
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19,
 }).addTo(map);
 
 /* -------------------------------------------------------------
-   2. INVENTORY UI
+   2. PLAYER MARKER (FIXED LOCATION)
+--------------------------------------------------------------*/
+
+const playerMarker = L.marker([PLAYER_LAT, PLAYER_LNG]).addTo(map);
+
+playerMarker.bindTooltip("You are here", {
+  permanent: true,
+  direction: "top",
+});
+
+/* -------------------------------------------------------------
+   3. INVENTORY UI + WIN MESSAGE
 --------------------------------------------------------------*/
 
 const inventoryDiv = document.createElement("div");
@@ -46,19 +61,44 @@ inventoryDiv.style.left = "10px";
 inventoryDiv.style.zIndex = "999";
 document.body.appendChild(inventoryDiv);
 
+// Win popup
+const winDiv = document.createElement("div");
+winDiv.id = "winMessage";
+winDiv.style.position = "absolute";
+winDiv.style.top = "50%";
+winDiv.style.left = "50%";
+winDiv.style.transform = "translate(-50%, -50%)";
+winDiv.style.fontSize = "32px";
+winDiv.style.color = "yellow";
+winDiv.style.background = "rgba(0,0,0,0.7)";
+winDiv.style.padding = "20px";
+winDiv.style.borderRadius = "10px";
+winDiv.style.zIndex = "2000";
+winDiv.style.display = "none";
+winDiv.innerText = "🎉 You win! 🎉";
+document.body.appendChild(winDiv);
+
 let heldToken: number | null = null;
+let hasWon = false;
+const WIN_VALUE = 16;
 
 function updateInventoryUI() {
   inventoryDiv.innerText = heldToken === null
     ? "Held Token: none"
     : `Held Token: ${heldToken}`;
+
+  // Win condition check
+  if (!hasWon && heldToken !== null && heldToken >= WIN_VALUE) {
+    hasWon = true;
+    winDiv.style.display = "block";
+  }
 }
 
 /* -------------------------------------------------------------
-   3. GRID + TOKEN LOGIC
+   4. GRID + TOKEN LOGIC
 --------------------------------------------------------------*/
 
-const CELL_SIZE = 0.0001; // house-sized grid cells
+const CELL_SIZE = 0.0001;
 const cellLayers: Map<string, L.Rectangle> = new Map();
 const cellTokenMap: Map<string, number | null> = new Map();
 
@@ -68,7 +108,7 @@ function cellKey(i: number, j: number): string {
 
 function tokenFromLuck(i: number, j: number): number | null {
   const v = luck(`${i},${j}`);
-  return v < 0.2 ? 1 : null; // 20% chance of a token
+  return v < 0.2 ? 1 : null; // 20% chance
 }
 
 function latLngToCell(lat: number, lng: number) {
@@ -85,25 +125,23 @@ function boundsForCell(i: number, j: number): L.LatLngBoundsLiteral {
   ];
 }
 
-// Manhattan distance for interaction
 function cellDistance(i1: number, j1: number, i2: number, j2: number) {
   return Math.abs(i1 - i2) + Math.abs(j1 - j2);
 }
 
-// Player interaction rule
 function isInteractableCell(i: number, j: number): boolean {
-  const pc = latLngToCell(CLASS_LAT, CLASS_LNG);
+  const pc = latLngToCell(PLAYER_LAT, PLAYER_LNG);
   return cellDistance(i, j, pc.i, pc.j) <= 3;
 }
 
 /* -------------------------------------------------------------
-   4. RENDERING + INTERACTIONS
+   5. RENDERING + INTERACTION LOGIC
 --------------------------------------------------------------*/
 
 function renderGrid() {
-  const bounds = map.getBounds();
-  const sw = latLngToCell(bounds.getSouth(), bounds.getWest());
-  const ne = latLngToCell(bounds.getNorth(), bounds.getEast());
+  const b = map.getBounds();
+  const sw = latLngToCell(b.getSouth(), b.getWest());
+  const ne = latLngToCell(b.getNorth(), b.getEast());
 
   for (let i = sw.i - 1; i <= ne.i + 1; i++) {
     for (let j = sw.j - 1; j <= ne.j + 1; j++) {
@@ -111,7 +149,6 @@ function renderGrid() {
 
       if (cellLayers.has(key)) continue;
 
-      // Deterministic token — only generated once
       if (!cellTokenMap.has(key)) {
         cellTokenMap.set(key, tokenFromLuck(i, j));
       }
@@ -132,45 +169,35 @@ function renderGrid() {
         });
       }
 
-      /* -------------------------------
-         CELL CLICK LOGIC
-      --------------------------------*/
       rect.on("click", () => {
+        if (hasWon) return;
+
         if (!isInteractableCell(i, j)) {
-          console.log("Too far away to interact.");
+          console.log("Cell too far away.");
           return;
         }
 
         const cellValue = cellTokenMap.get(key);
 
-        /* ------------------------------------
-           CASE 1: PICKING UP (empty hand)
-        ------------------------------------ */
+        // PICKUP
         if (heldToken === null) {
-          if (cellValue == null) return; // can't pick up nothing
+          if (cellValue == null) return;
 
           heldToken = cellValue;
           updateInventoryUI();
 
-          // remove token from cell (visual + data)
           cellTokenMap.set(key, null);
           rect.unbindTooltip();
           rect.setStyle({ color: "#666", fillOpacity: 0.08 });
 
-          console.log(`Picked up token ${heldToken} at ${key}`);
           return;
         }
 
-        /* ------------------------------------
-           CASE 2: CRAFTING (double value)
-        ------------------------------------ */
+        // CRAFTING
         if (cellValue === heldToken) {
           const newValue = heldToken * 2;
 
-          // update token
           cellTokenMap.set(key, newValue);
-
-          // update visuals
           rect.setStyle({ color: "#2b8a3e", fillOpacity: 0.25 });
           rect.bindTooltip(`${newValue}`, {
             permanent: true,
@@ -178,18 +205,12 @@ function renderGrid() {
             className: "cell-label",
           });
 
-          console.log(`Crafted ${heldToken} + ${cellValue} → ${newValue}`);
-
-          // empty hand after crafting
           heldToken = null;
           updateInventoryUI();
           return;
         }
 
-        /* ------------------------------------
-           CASE 3: INVALID CRAFTING
-        ------------------------------------ */
-        console.log("Cannot craft: token values don't match.");
+        console.log("Token values do not match.");
       });
 
       rect.addTo(map);
