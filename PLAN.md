@@ -28,9 +28,9 @@ Key gameplay challenge: collect nearby tokens and craft a high-value token.
 - [x] Generalize to draw a full grid of cells around the player.
 - [x] Implement deterministic token spawning using `luck` for each cell.
 - [x] Visualize cell contents (empty vs token + numeric value).
-- [ ] Track player inventory (0 or 1 token) in game state.
-- [ ] Implement “pick up token” when clicking a nearby cell with a token.
-- [ ] Restrict interaction to cells within 3 grid steps of player.
-- [ ] Implement crafting: placing token on equal-value token → double value.
+- [x] Track player inventory (0 or 1 token) in game state.
+- [x] Implement “pick up token” when clicking a nearby cell with a token.
+- [x] Restrict interaction to cells within 3 grid steps of player.
+- [x] Implement crafting: placing token on equal-value token → double value.
 - [ ] Detect win condition when held token >= target value and show win message.
 - [ ] Cleanup pass: remove dead code, console logs, and do a cleanup-only commit.

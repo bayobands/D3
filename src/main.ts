@@ -10,14 +10,13 @@ import L from "leaflet";
 // Deterministic hashing
 import luck from "./_luck.ts";
 
-// Create <div id="map"> without editing index.html
-const mapDiv = document.createElement("div");
-mapDiv.id = "map";
-document.body.appendChild(mapDiv);
-
 /* -------------------------------------------------------------
    1. MAP SETUP
 --------------------------------------------------------------*/
+
+const mapDiv = document.createElement("div");
+mapDiv.id = "map";
+document.body.appendChild(mapDiv);
 
 const CLASS_LAT = 36.9916;
 const CLASS_LNG = -122.0583;
@@ -27,7 +26,6 @@ const map = L.map("map", {
   zoomSnap: 0,
 }).setView([CLASS_LAT, CLASS_LNG], 18);
 
-// OSM tiles
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19,
 }).addTo(map);
@@ -46,7 +44,6 @@ inventoryDiv.style.position = "absolute";
 inventoryDiv.style.top = "10px";
 inventoryDiv.style.left = "10px";
 inventoryDiv.style.zIndex = "999";
-inventoryDiv.innerText = "Held Token: none";
 document.body.appendChild(inventoryDiv);
 
 let heldToken: number | null = null;
@@ -61,19 +58,17 @@ function updateInventoryUI() {
    3. GRID + TOKEN LOGIC
 --------------------------------------------------------------*/
 
-const CELL_SIZE = 0.0001;
-
+const CELL_SIZE = 0.0001; // house-sized grid cells
 const cellLayers: Map<string, L.Rectangle> = new Map();
-const cellTokenMap: Map<string, number | null> = new Map(); // track active tokens
+const cellTokenMap: Map<string, number | null> = new Map();
 
-function cellKey(i: number, j: number) {
+function cellKey(i: number, j: number): string {
   return `${i},${j}`;
 }
 
 function tokenFromLuck(i: number, j: number): number | null {
   const v = luck(`${i},${j}`);
-  if (v < 0.2) return 1; // 20% chance
-  return null;
+  return v < 0.2 ? 1 : null; // 20% chance of a token
 }
 
 function latLngToCell(lat: number, lng: number) {
@@ -90,18 +85,25 @@ function boundsForCell(i: number, j: number): L.LatLngBoundsLiteral {
   ];
 }
 
+// Manhattan distance for interaction
 function cellDistance(i1: number, j1: number, i2: number, j2: number) {
   return Math.abs(i1 - i2) + Math.abs(j1 - j2);
 }
 
+// Player interaction rule
+function isInteractableCell(i: number, j: number): boolean {
+  const pc = latLngToCell(CLASS_LAT, CLASS_LNG);
+  return cellDistance(i, j, pc.i, pc.j) <= 3;
+}
+
 /* -------------------------------------------------------------
-   4. RENDERING THE WORLD
+   4. RENDERING + INTERACTIONS
 --------------------------------------------------------------*/
 
 function renderGrid() {
-  const b = map.getBounds();
-  const sw = latLngToCell(b.getSouth(), b.getWest());
-  const ne = latLngToCell(b.getNorth(), b.getEast());
+  const bounds = map.getBounds();
+  const sw = latLngToCell(bounds.getSouth(), bounds.getWest());
+  const ne = latLngToCell(bounds.getNorth(), bounds.getEast());
 
   for (let i = sw.i - 1; i <= ne.i + 1; i++) {
     for (let j = sw.j - 1; j <= ne.j + 1; j++) {
@@ -109,7 +111,7 @@ function renderGrid() {
 
       if (cellLayers.has(key)) continue;
 
-      // spawn token if not tracked yet
+      // Deterministic token — only generated once
       if (!cellTokenMap.has(key)) {
         cellTokenMap.set(key, tokenFromLuck(i, j));
       }
@@ -130,27 +132,64 @@ function renderGrid() {
         });
       }
 
-      // CLICK TO PICK UP TOKEN
+      /* -------------------------------
+         CELL CLICK LOGIC
+      --------------------------------*/
       rect.on("click", () => {
-        if (heldToken !== null) return; // can't pick up if holding
+        if (!isInteractableCell(i, j)) {
+          console.log("Too far away to interact.");
+          return;
+        }
 
-        // distance restriction: must be near player
-        const playerCell = latLngToCell(CLASS_LAT, CLASS_LNG);
-        if (cellDistance(i, j, playerCell.i, playerCell.j) > 3) return;
+        const cellValue = cellTokenMap.get(key);
 
-        const t = cellTokenMap.get(key);
-        if (t === null) return; // nothing to pick up
+        /* ------------------------------------
+           CASE 1: PICKING UP (empty hand)
+        ------------------------------------ */
+        if (heldToken === null) {
+          if (cellValue == null) return; // can't pick up nothing
 
-        // pick up
-        heldToken = t ?? null;
-        updateInventoryUI();
+          heldToken = cellValue;
+          updateInventoryUI();
 
-        // remove token visually + logically
-        cellTokenMap.set(key, null);
-        rect.unbindTooltip();
-        rect.setStyle({ color: "#666", fillOpacity: 0.08 });
+          // remove token from cell (visual + data)
+          cellTokenMap.set(key, null);
+          rect.unbindTooltip();
+          rect.setStyle({ color: "#666", fillOpacity: 0.08 });
 
-        console.log(`Picked up token ${t} at cell ${i},${j}`);
+          console.log(`Picked up token ${heldToken} at ${key}`);
+          return;
+        }
+
+        /* ------------------------------------
+           CASE 2: CRAFTING (double value)
+        ------------------------------------ */
+        if (cellValue === heldToken) {
+          const newValue = heldToken * 2;
+
+          // update token
+          cellTokenMap.set(key, newValue);
+
+          // update visuals
+          rect.setStyle({ color: "#2b8a3e", fillOpacity: 0.25 });
+          rect.bindTooltip(`${newValue}`, {
+            permanent: true,
+            direction: "center",
+            className: "cell-label",
+          });
+
+          console.log(`Crafted ${heldToken} + ${cellValue} → ${newValue}`);
+
+          // empty hand after crafting
+          heldToken = null;
+          updateInventoryUI();
+          return;
+        }
+
+        /* ------------------------------------
+           CASE 3: INVALID CRAFTING
+        ------------------------------------ */
+        console.log("Cannot craft: token values don't match.");
       });
 
       rect.addTo(map);
