@@ -33,4 +33,4 @@ Key gameplay challenge: collect nearby tokens and craft a high-value token.
 - [x] Restrict interaction to cells within 3 grid steps of player.
 - [x] Implement crafting: placing token on equal-value token → double value.
 - [x] Detect win condition when held token >= target value and show win message.
-- [ ] Cleanup pass: remove dead code, console logs, and do a cleanup-only commit.
+- [x] Cleanup pass: remove dead code, console logs, and do a cleanup-only commit.
