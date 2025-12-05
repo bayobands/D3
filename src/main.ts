@@ -11,7 +11,7 @@ import L from "leaflet";
 import luck from "./_luck.ts";
 
 /* -------------------------------------------------------------
-   1. CONSTANTS + HELPERS
+   CONSTANTS + HELPERS
 --------------------------------------------------------------*/
 
 const CELL_SIZE = 0.0001;
@@ -44,23 +44,22 @@ function tokenFromLuck(i: number, j: number): number | null {
 }
 
 /* -------------------------------------------------------------
-   2. PLAYER STATE (D3.b.1)
+   PLAYER STATE (D3.b)
 --------------------------------------------------------------*/
 
-// Starting location (Classroom Unit 2)
+// Classroom Unit 2 exact coordinates
 const CLASS_LAT = 36.99790233940329;
 const CLASS_LNG = -122.05700844526292;
 
-// Convert classroom → starting grid cell
+// Convert classroom → starting cell
 const startCell = latLngToCell(CLASS_LAT, CLASS_LNG);
 
-// Actual player state stored as grid coordinates
 const player = {
   i: startCell.i,
   j: startCell.j,
 };
 
-// Convert player grid → map lat/lng
+// Convert player grid → lat/lng
 function playerLatLng(): [number, number] {
   return [
     player.i * CELL_SIZE + CELL_SIZE / 2,
@@ -69,7 +68,7 @@ function playerLatLng(): [number, number] {
 }
 
 /* -------------------------------------------------------------
-   3. MAP SETUP (now uses playerLatLng)
+   MAP SETUP
 --------------------------------------------------------------*/
 
 const mapDiv = document.createElement("div");
@@ -81,17 +80,16 @@ const map = L.map("map", {
   zoomSnap: 0,
 }).setView(playerLatLng(), 18);
 
-// Add tiles
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19,
 }).addTo(map);
 
-// Add player marker
+// Player marker
 const playerMarker = L.marker(playerLatLng(), { title: "You" });
 playerMarker.addTo(map);
 
 /* -------------------------------------------------------------
-   4. INVENTORY UI + WIN MESSAGE
+   INVENTORY UI + WIN MESSAGE
 --------------------------------------------------------------*/
 
 const inventoryDiv = document.createElement("div");
@@ -136,21 +134,58 @@ function updateInventoryUI() {
 }
 
 /* -------------------------------------------------------------
-   5. GRID + TOKEN STATE
+   MOVEMENT UI (D3.b.2)
+--------------------------------------------------------------*/
+
+const controls = document.createElement("div");
+controls.id = "controls";
+controls.style.position = "absolute";
+controls.style.bottom = "20px";
+controls.style.left = "50%";
+controls.style.transform = "translateX(-50%)";
+controls.style.display = "grid";
+controls.style.gridTemplateColumns = "repeat(3, 60px)";
+controls.style.gap = "6px";
+controls.style.zIndex = "999";
+
+controls.innerHTML = `
+  <button id="moveN">N</button>
+  <div></div>
+  <button id="moveS">S</button>
+  <button id="moveW">W</button>
+  <button id="moveE">E</button>
+`;
+
+document.body.appendChild(controls);
+
+function movePlayer(di: number, dj: number) {
+  player.i += di;
+  player.j += dj;
+
+  const pos = playerLatLng();
+
+  playerMarker.setLatLng(pos);
+  map.panTo(pos);
+
+  renderGrid();
+}
+
+// Hook up movement buttons
+document.getElementById("moveN")!.onclick = () => movePlayer(-1, 0);
+document.getElementById("moveS")!.onclick = () => movePlayer(1, 0);
+document.getElementById("moveW")!.onclick = () => movePlayer(0, -1);
+document.getElementById("moveE")!.onclick = () => movePlayer(0, 1);
+
+/* -------------------------------------------------------------
+   GRID + INTERACTION
 --------------------------------------------------------------*/
 
 const cellLayers: Map<string, L.Rectangle> = new Map();
 const cellTokenMap: Map<string, number | null> = new Map();
 
-// Use player location for interaction range
-function isInteractableCell(i: number, j: number): boolean {
-  const p = player;
-  return cellDistance(i, j, p.i, p.j) <= 3;
+function isInteractableCell(i: number, j: number) {
+  return cellDistance(i, j, player.i, player.j) <= 3;
 }
-
-/* -------------------------------------------------------------
-   6. RENDER GRID + INTERACTIONS
---------------------------------------------------------------*/
 
 function renderGrid() {
   const bounds = map.getBounds();
@@ -160,6 +195,7 @@ function renderGrid() {
   for (let i = sw.i - 1; i <= ne.i + 1; i++) {
     for (let j = sw.j - 1; j <= ne.j + 1; j++) {
       const key = cellKey(i, j);
+
       if (cellLayers.has(key)) continue;
 
       if (!cellTokenMap.has(key)) {

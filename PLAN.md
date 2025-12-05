@@ -41,3 +41,10 @@ Key gameplay challenge: collect nearby tokens and craft a high-value token.
 - [x] Convert grid → lat/lng helper
 - [x] Add Leaflet marker for player
 - [x] Marker appears at correct world location
+
+
+### **D3.b.2 — Movement UI**
+- [x] Add movement buttons (N, S, E, W)
+- [x] Each button updates player's grid coordinates  
+- [x] Smoothly update marker position  
+- [x] Recalculate which cells are interactable  
