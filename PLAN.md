@@ -63,3 +63,11 @@ Key gameplay challenge: collect nearby tokens and craft a high-value token.
 
 - [x] Remove debug logs
 - [x] Final review of D3.b
+
+### **D3.c Steps
+
+- [] Introduce modifiedCells (persistent memory)
+- [] Introduce ephemeralCells (on-screen-only memory)
+- [] Update renderGrid to use flyweight model
+- [] Save/restore modified states (Memento)
+- [] Remove permanent storage of unmodified cell
