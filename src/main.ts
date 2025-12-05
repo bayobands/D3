@@ -6,13 +6,16 @@ import "./style.css";
 // Leaflet runtime + types
 // @deno-types="npm:@types/leaflet"
 import L from "leaflet";
+
+// Deterministic hashing
 import luck from "./_luck.ts";
 
 /* -------------------------------------------------------------
    CONSTANTS + HELPERS
 --------------------------------------------------------------*/
 
-const CELL_SIZE = 0.0001;
+const CELL_SIZE = 0.0001; // approx house-size cell
+const PICKUP_STEPS = 3;
 
 function cellKey(i: number, j: number): string {
   return `${i},${j}`;
@@ -61,13 +64,15 @@ function loadGame() {
       modifiedCells.set(key, value);
     }
   } catch {
-    // Ignore corrupted saves
+    console.error("Error loading save");
   }
 }
 
 function saveGameState() {
   localStorage.setItem("worldOfBits_save", serializeModifiedCells());
 }
+
+loadGame();
 
 /* -------------------------------------------------------------
    PLAYER STATE
@@ -89,8 +94,6 @@ function playerLatLng(): [number, number] {
   ];
 }
 
-loadGame();
-
 /* -------------------------------------------------------------
    MAP SETUP
 --------------------------------------------------------------*/
@@ -99,19 +102,30 @@ const mapDiv = document.createElement("div");
 mapDiv.id = "map";
 document.body.appendChild(mapDiv);
 
-const map = L.map("map", { zoomControl: true }).setView(playerLatLng(), 18);
+const map = L.map("map").setView(playerLatLng(), 18);
 
-L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-}).addTo(map);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 
-const playerMarker = L.marker(playerLatLng(), { title: "You" }).addTo(map);
+const playerMarker = L.marker(playerLatLng()).addTo(map);
+
+/* -----------------------------
+   PICKUP RANGE CIRCLE (NEW)
+------------------------------*/
+
+const PICKUP_RADIUS_METERS = CELL_SIZE * PICKUP_STEPS * 111320;
+
+const rangeCircle = L.circle(playerLatLng(), {
+  radius: PICKUP_RADIUS_METERS,
+  color: "#00aaff",
+  fillColor: "#00aaff",
+  fillOpacity: 0.12,
+  weight: 1,
+});
+rangeCircle.addTo(map);
 
 /* -------------------------------------------------------------
-   UI
+   INVENTORY UI
 --------------------------------------------------------------*/
-
-let heldToken: number | null = null;
 
 const inventoryDiv = document.createElement("div");
 inventoryDiv.style.position = "absolute";
@@ -124,28 +138,38 @@ inventoryDiv.style.fontSize = "18px";
 inventoryDiv.style.zIndex = "999";
 document.body.appendChild(inventoryDiv);
 
+let heldToken: number | null = null;
+
 function updateInventoryUI() {
   inventoryDiv.innerText = heldToken === null
     ? "Token: none"
     : `Token: ${heldToken}`;
 }
 
-// New Game button
+/* -------------------------------------------------------------
+   NEW GAME BUTTON
+--------------------------------------------------------------*/
+
 const newGameBtn = document.createElement("button");
 newGameBtn.innerText = "New Game";
 newGameBtn.style.position = "absolute";
 newGameBtn.style.top = "10px";
 newGameBtn.style.right = "10px";
-newGameBtn.style.padding = "6px 10px";
-newGameBtn.style.fontSize = "14px";
 newGameBtn.style.zIndex = "999";
 document.body.appendChild(newGameBtn);
 
+newGameBtn.onclick = () => {
+  modifiedCells.clear();
+  heldToken = null;
+  saveGameState();
+  updateInventoryUI();
+  renderGrid();
+};
+
 /* -------------------------------------------------------------
-   MOVEMENT CONTROLS + FACADE
+   MOVEMENT BUTTONS (BUTTON MODE)
 --------------------------------------------------------------*/
 
-// On-screen movement buttons (used in button mode)
 const controls = document.createElement("div");
 controls.style.position = "absolute";
 controls.style.bottom = "20px";
@@ -169,120 +193,48 @@ document.body.appendChild(controls);
 function movePlayer(di: number, dj: number) {
   player.i += di;
   player.j += dj;
+
   const pos = playerLatLng();
+
   playerMarker.setLatLng(pos);
   map.panTo(pos);
+  rangeCircle.setLatLng(pos);
+
   renderGrid();
 }
 
-// Movement mode toggle button
-const movementToggleBtn = document.createElement("button");
-movementToggleBtn.style.position = "absolute";
-movementToggleBtn.style.top = "44px";
-movementToggleBtn.style.right = "10px";
-movementToggleBtn.style.padding = "6px 10px";
-movementToggleBtn.style.fontSize = "14px";
-movementToggleBtn.style.zIndex = "999";
-document.body.appendChild(movementToggleBtn);
-
-interface MovementController {
-  mode: "buttons" | "geolocation";
-  start(): void;
-  stop(): void;
-}
-
-let geoWatchId: number | null = null;
-
-const buttonMovementController: MovementController = {
-  mode: "buttons",
-  start() {
-    controls.style.display = "grid";
-    document.getElementById("moveN")!.onclick = () => movePlayer(-1, 0);
-    document.getElementById("moveS")!.onclick = () => movePlayer(1, 0);
-    document.getElementById("moveW")!.onclick = () => movePlayer(0, -1);
-    document.getElementById("moveE")!.onclick = () => movePlayer(0, 1);
-  },
-  stop() {
-    controls.style.display = "none";
-    document.getElementById("moveN")!.onclick = null;
-    document.getElementById("moveS")!.onclick = null;
-    document.getElementById("moveW")!.onclick = null;
-    document.getElementById("moveE")!.onclick = null;
-  },
-};
-
-const geolocationMovementController: MovementController = {
-  mode: "geolocation",
-  start() {
-    controls.style.display = "none";
-    if (!navigator.geolocation) return;
-
-    geoWatchId = navigator.geolocation.watchPosition((pos) => {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-
-      const cell = latLngToCell(lat, lng);
-      player.i = cell.i;
-      player.j = cell.j;
-
-      const p = playerLatLng();
-      playerMarker.setLatLng(p);
-      map.panTo(p);
-      renderGrid();
-    });
-  },
-  stop() {
-    if (geoWatchId !== null) {
-      navigator.geolocation.clearWatch(geoWatchId);
-      geoWatchId = null;
-    }
-  },
-};
-
-let currentMovement: MovementController = buttonMovementController;
-
-function setMovementMode(next: MovementController) {
-  currentMovement.stop();
-  currentMovement = next;
-  currentMovement.start();
-  movementToggleBtn.innerText = currentMovement.mode === "buttons"
-    ? "Use Geolocation"
-    : "Use Buttons";
-}
-
-// Initial mode: buttons
-setMovementMode(buttonMovementController);
-
-// Toggle click handler
-movementToggleBtn.onclick = () => {
-  if (currentMovement.mode === "buttons") {
-    setMovementMode(geolocationMovementController);
-  } else {
-    setMovementMode(buttonMovementController);
-  }
-};
+document.getElementById("moveN")!.onclick = () => movePlayer(-1, 0);
+document.getElementById("moveS")!.onclick = () => movePlayer(1, 0);
+document.getElementById("moveW")!.onclick = () => movePlayer(0, -1);
+document.getElementById("moveE")!.onclick = () => movePlayer(0, 1);
 
 /* -------------------------------------------------------------
-   NEW GAME LOGIC
+   GEOLOCATION MODE (OPTIONAL)
 --------------------------------------------------------------*/
 
-newGameBtn.onclick = () => {
-  localStorage.removeItem("worldOfBits_save");
-  modifiedCells.clear();
-  heldToken = null;
+// URL example: index.html?movement=geo
+const useGeo = new URLSearchParams(location.search).get("movement") === "geo";
 
-  player.i = startCell.i;
-  player.j = startCell.j;
+if (useGeo && navigator.geolocation) {
+  navigator.geolocation.watchPosition((pos) => {
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
 
-  updateInventoryUI();
-  const pos = playerLatLng();
-  map.setView(pos, 18);
-  playerMarker.setLatLng(pos);
-  renderGrid();
-};
+    const cell = latLngToCell(lat, lng);
+    player.i = cell.i;
+    player.j = cell.j;
+
+    const p = playerLatLng();
+    playerMarker.setLatLng(p);
+    map.panTo(p);
+    rangeCircle.setLatLng(p);
+
+    renderGrid();
+  });
+}
 
 /* -------------------------------------------------------------
-   CELL STATE + GRID
+   CELL STATE + GRID RENDERING
 --------------------------------------------------------------*/
 
 const ephemeralCells = new Map<string, L.Rectangle>();
@@ -298,7 +250,7 @@ function setCellTokenValue(i: number, j: number, value: number | null) {
 }
 
 function isInteractableCell(i: number, j: number) {
-  return cellDistance(i, j, player.i, player.j) <= 3;
+  return cellDistance(i, j, player.i, player.j) <= PICKUP_STEPS;
 }
 
 function renderGrid() {
@@ -310,18 +262,18 @@ function renderGrid() {
   const ne = latLngToCell(bounds.getNorth(), bounds.getEast());
 
   for (let i = sw.i - 1; i <= ne.i + 1; i++) {
-    for (let j = ne.j + 1; j >= sw.j - 1; j--) {
+    for (let j = sw.j - 1; j <= ne.j + 1; j++) {
       const key = cellKey(i, j);
-      const value = getCellTokenValue(i, j);
+      const tokenValue = getCellTokenValue(i, j);
 
       const rect = L.rectangle(boundsForCell(i, j), {
-        color: value !== null ? "#2b8a3e" : "#666",
+        color: tokenValue !== null ? "#2b8a3e" : "#666",
         weight: 0.4,
-        fillOpacity: value !== null ? 0.25 : 0.08,
+        fillOpacity: tokenValue !== null ? 0.25 : 0.08,
       });
 
-      if (value !== null) {
-        rect.bindTooltip(`${value}`, {
+      if (tokenValue !== null) {
+        rect.bindTooltip(`${tokenValue}`, {
           permanent: true,
           direction: "center",
         });
@@ -329,28 +281,21 @@ function renderGrid() {
 
       rect.on("click", () => {
         if (!isInteractableCell(i, j)) return;
+
         const current = getCellTokenValue(i, j);
 
-        // Pick up
         if (heldToken === null) {
           if (current == null) return;
           heldToken = current;
           setCellTokenValue(i, j, null);
-          updateInventoryUI();
-          saveGameState();
-          renderGrid();
-          return;
+        } else if (current === heldToken) {
+          setCellTokenValue(i, j, heldToken * 2);
+          heldToken = null;
         }
 
-        // Craft
-        if (current === heldToken) {
-          const newVal = heldToken * 2;
-          setCellTokenValue(i, j, newVal);
-          heldToken = null;
-          updateInventoryUI();
-          saveGameState();
-          renderGrid();
-        }
+        saveGameState();
+        updateInventoryUI();
+        renderGrid();
       });
 
       rect.addTo(gridLayer);
