@@ -97,25 +97,25 @@ Key gameplay challenge: collect nearby tokens and craft a high-value token.
 ### **D3.c.2 — Memento Restore System**
 
 - [x] Save modified cell state into `modifiedCells` whenever player alters a cell
-- [ ] Restore cell state from `modifiedCells` when the cell re-enters view
-- [ ] If no modified state exists, generate token using deterministic `luck()`
-- [ ] Verify restored cells behave exactly the same before/after leaving visibility
+- [x] Restore cell state from `modifiedCells` when the cell re-enters view
+- [x] If no modified state exists, generate token using deterministic `luck()`
+- [x] Verify restored cells behave exactly the same before/after leaving visibility
 
 ### **D3.c.3 — RenderGrid Rewrite**
 
-- [ ] Clear `ephemeralCells` every time `renderGrid` runs
-- [ ] Rebuild all visible cells fresh from:
+- [x] Clear `ephemeralCells` every time `renderGrid` runs
+- [x] Rebuild all visible cells fresh from:
   - `modifiedCells` (persistent state)
   - **OR** `luck()` (unmodified state)
-- [ ] Ensure grid spans entire map while keeping memory small
-- [ ] Keep interaction logic consistent with new flyweight model
+- [x] Ensure grid spans entire map while keeping memory small
+- [x] Keep interaction logic consistent with new flyweight model
 
 ### **D3.c.4 — Gameplay Behavior Verification**
 
-- [ ] Player can “farm” tokens by moving away and back
-- [ ] Modified cells do **not** reset when hidden (persistence)
-- [ ] Unmodified cells **do** reset (flyweight stateless behavior)
-- [ ] All crafting and pickup rules still function correctly
+- [x] Player can “farm” tokens by moving away and back
+- [x] Modified cells do **not** reset when hidden (persistence)
+- [x] Unmodified cells **do** reset (flyweight stateless behavior)
+- [x] All crafting and pickup rules still function correctly
 
 ### **D3.c.5 — Cleanup Commit**
 
