@@ -34,3 +34,10 @@ Key gameplay challenge: collect nearby tokens and craft a high-value token.
 - [x] Implement crafting: placing token on equal-value token → double value.
 - [x] Detect win condition when held token >= target value and show win message.
 - [x] Cleanup pass: remove dead code, console logs, and do a cleanup-only commit.
+
+### **D3.b.1 — Player State + Marker**
+
+- [x] Add player grid coordinate state (`player.i`, `player.j`)
+- [x] Convert grid → lat/lng helper
+- [x] Add Leaflet marker for player
+- [x] Marker appears at correct world location
