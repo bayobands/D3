@@ -48,3 +48,21 @@ Key gameplay challenge: collect nearby tokens and craft a high-value token.
 - [x] Each button updates player's grid coordinates
 - [x] Smoothly update marker position
 - [x] Recalculate which cells are interactable
+
+### **D3.b.3 — Interaction Uses _Real_ Player Location**
+
+- [ ] Restrict pickup/crafting based on **player grid**, not classroom
+- [ ] All interactions update correctly as player moves
+- Commit required
+
+### **D3.b.4 — Auto-scroll Camera**
+
+- [ ] Map recenters whenever player moves
+- [ ] Smooth camera movement
+- Commit required
+
+### **D3.b.5 — Cleanup Commit**
+
+- [ ] Remove debug logs
+- [ ] Final review of D3.b
+- Commit labeled “D3.b complete”
